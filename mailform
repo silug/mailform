@@ -20,7 +20,7 @@
 #
 # Documentation in pod format follows the script.
 #
-# $Id: mailform,v 1.1 2002/12/21 03:34:29 steve Exp $
+# $Id: mailform,v 1.2 2002/12/21 03:48:03 steve Exp $
 
 use strict;
 
@@ -33,7 +33,9 @@ my $mailserver="localhost";
 
 my (%name,%address,$param);
 
-my %valid=('to' => [qw(info@silug.org awilson@accessus.net)]);
+# Add valid addresses here.
+# This is the simple way to prevent being a spam gateway.
+my %valid=('to' => []);
 
 my $query=new CGI;
 
