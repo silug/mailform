@@ -1,0 +1,214 @@
+#!/usr/bin/perl -wT
+#
+# mailform.pl
+# Copyright (C) 1998 Steven Pritchard (steve@silug.org)
+# Inspired by (and somewhat compatible with) mailback.pl by Phillip Moore
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+#
+# Documentation in pod format follows the script.
+#
+# $Id: mailform,v 1.1 2002/12/21 03:34:29 steve Exp $
+
+use strict;
+
+use CGI;
+use Net::SMTP;
+
+# Replace with whatever mail server
+# you want this script to connect to
+my $mailserver="localhost";
+
+my (%name,%address,$param);
+
+my %valid=('to' => [qw(info@silug.org awilson@accessus.net)]);
+
+my $query=new CGI;
+
+# For compatibility with mailback.pl
+if (defined($query->param('mailitto')))
+{
+    $query->param(-name=>'to',-value=>$query->param('mailitto'));
+    $query->delete('mailitto');
+    $query->param(-name=>'from',-value=>$query->param('mailfrom'));
+    $query->delete('mailfrom');
+}
+
+print $query->header;
+print $query->start_html(-title=>'Form Mail Results', -BGCOLOR=>'white');
+
+# Verify from & to
+foreach $param ("from", "to")
+{
+    if ($query->param($param)
+          =~/^\s*(\S+.*?)?\s*<([\w\.\-\%]+\@\[?[A-Za-z0-9\-\.]+\]?)>\s*$/)
+    {
+        $name{$param}=$1;
+        $address{$param}=$2;
+    }
+    elsif ($query->param($param)
+             =~/^\s*([\w\.\-\%]+\@\[?[A-Za-z0-9\-\.]+\]?)\s*(\(\S+.*?\))?\s*$/)
+    {
+        $address{$param}=$1;
+        $name{$param}=$2;
+	$name{$param}=~s/^\((.*)\)$/$1/;
+    }
+    else
+    {
+        print "<p>\nPlease enter a valid $param email address.\n</p>\n";
+        print $query->end_html;
+        exit 0;
+    }
+
+    if ($valid{$param} && !grep(/^$address{$param}$/, @{$valid{$param}}))
+    {
+        print "<p>\nInvalid $param email address.\n</p>\n";
+	print $query->end_html;
+	exit 0;
+    }
+}
+
+# As a test, I used this script for a web email form thingy.
+# I'm leaving the relevant code here in the hopes that it
+# might be useful or of interest to someone.
+#my $body=$query->param('body');
+#if (!$body)
+#{
+#    print "<p>\nNot sending mail with empty body.\n</p>\n";
+#    print $query->end_html;
+#    exit 0;
+#}
+
+my $subject=$query->param('subject');
+
+#print "<p>\nSending mail from \"$name{from}\" ($address{from}) to \"$name{to}\" ($address{to})...\n</p>\n";
+
+my $smtp=Net::SMTP->new($mailserver);
+
+if (!$smtp)
+{
+    print "<p>\nFailed to send mail.  Please try again later.\n</p>\n";
+    print $query->end_html;
+    exit 0;
+}
+
+$smtp->mail($address{'from'});
+$smtp->to($address{'to'});
+$smtp->data();
+$smtp->datasend("From: $name{from} <$address{from}>\n");
+$smtp->datasend("To: $name{to} <$address{to}>\n");
+$smtp->datasend("Subject: $subject\n");
+$smtp->datasend("X-Originating-IP: $ENV{'REMOTE_ADDR'}\n");
+$smtp->datasend("X-Mailform-URL: http://$ENV{'SERVER_NAME'}"
+                . (($ENV{'SERVER_PORT'} != 80) ? ":$ENV{'SERVER_PORT'}" : "")
+		. $ENV{'REQUEST_URI'}
+		. ($ENV{'QUERY_STRING'} ? "?$ENV{'QUERY_STRING'}" : "") . "\n");
+$smtp->datasend("X-HTTP-Referer: $ENV{'HTTP_REFERER'}\n")
+    if (defined($ENV{'HTTP_REFERER'}));
+$smtp->datasend("\n");
+foreach $param ($query->param)
+{
+    if ($param!~/^(to|subject|sentmessage|return(url|graphic|message))$/o)
+    {
+        $smtp->datasend($param . " = " . $query->param($param) . "\n");
+    }
+}
+# Replace the previous foreach with the next line
+# to use this script for a web email form.
+#$smtp->datasend($body);
+$smtp->dataend();
+$smtp->quit;
+
+# Output message
+if ($query->param('sentmessage'))
+{
+    print "<h1>\n", $query->param('sentmessage'), "\n</h1>\n\n";
+}
+else
+{
+    print "<h1>\nMessage sent.\n</h1>\n\n";
+}
+
+if ($query->param('returnurl') || $query->param('returngraphic')
+    || $query->param('returnmessage'))
+{
+    print "<p>\n";
+    if (defined($query->param('returnurl')))
+    {
+        print "<a href=\"", $query->param('returnurl'), "\">\n";
+    }
+    if ($query->param('returngraphic'))
+    {
+        print "<img src=\"", $query->param('returngraphic'), "\">\n";
+    }
+    print $query->param('returnmessage');
+    print "</a>\n" if (defined($query->param('returnurl')));
+    print "</p>\n\n";
+}
+
+print $query->end_html;
+__END__
+
+=head1 NAME
+
+mailform - Mails HTML form input to a specified recipient
+
+=head1 DESCRIPTION
+
+This script is designed to be used as a CGI script to convert form input
+into a readable state, then mail it to the appropriate user.
+
+Two fields are required, "to" and "from", which are the address to send
+mail to, and the address that the mail should show as coming from.  Optional
+fields include "subject", "sentmessage", "returnurl", "returngraphic", and
+"returnmessage".
+
+=head1 EXAMPLE
+
+ <form action="/cgi-bin/mailform" method="post">
+ <!-- Required fields -->
+ <input type="hidden" name="to" value="you@some.where">
+ <input type="text" name="from">
+ <!-- Optional fields -->
+ <input type="hidden" name="subject" value="Subject of email">
+ <input type="hidden" name="sentmessage" value="Message to user">
+ <input type="hidden" name="returnurl" value="http://foo/bar/">
+ <input type="hidden" name="returngraphic" value="http://foo/bar.gif">
+ <input type="hidden" name="returnmessage" value="Back to foo...">
+ <!-- insert any other form elements here -->
+ </form>
+
+=head1 BUGS
+
+Using a GET method should work, but hasn't been tested.  YMMV.  You should be
+using POST anyway.
+
+The "showreport" option of mailback.pl wasn't implemented.  It probably should
+be.
+
+=head1 AUTHOR
+
+Steven Pritchard <F<steve@silug.org>>
+
+=head1 SEE ALSO
+
+L<perl(1)>, L<CGI(3)>, L<Net::SMTP(3)>
+
+=head1 NOTES
+
+This program was inspired by (and is somewhat compatible with) mailback.pl
+by Phillip Moore.
+
+=cut
