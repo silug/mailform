@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 #
 # mailform.pl
-# Copyright (C) 1998 Steven Pritchard (steve@silug.org)
+# Copyright (C) 1998-2002 Steven Pritchard (steve@silug.org)
 # Inspired by (and somewhat compatible with) mailback.pl by Phillip Moore
 #
 # This program is free software; you can redistribute it and/or modify
@@ -20,7 +20,7 @@
 #
 # Documentation in pod format follows the script.
 #
-# $Id: mailform,v 1.2 2002/12/21 03:48:03 steve Exp $
+# $Id: mailform,v 1.3 2002/12/21 06:43:29 steve Exp $
 
 use strict;
 
